@@ -1,0 +1,14 @@
+.git
+.project
+.projectile
+.settings
+target
+.classpath
+.editorconfig
+.gitignore
+Containerfile
+README.md
+gospel
+
+Dockerfile
+Dockerfile.*
