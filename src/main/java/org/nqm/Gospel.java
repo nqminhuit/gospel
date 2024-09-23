@@ -13,6 +13,9 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.WordUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
@@ -25,32 +28,54 @@ public class Gospel {
   private static final Path LOCAL_PATH = Path.of("/", "tmp", "vi", "loi-chua-hang-ngay");
   private static final String DATE_FORMAT = "yyyy/MM/dd";
 
+  private static String print(String s, boolean isCenter, int textWidth) {
+    final int width = textWidth < 60 ? 60 : textWidth;
+    var wrapped = WordUtils.wrap(s, width, null, true);
+    if (isCenter) {
+      Stream.of(wrapped.split("%n".formatted()))
+          .map(line -> StringUtils.center(line, width + 2))
+          .forEach(line -> System.out.println("\u001B[33m%s\u001B[0m".formatted(line)));
+    }
+    else {
+      System.out.println("\u001B[33m%s\u001B[0m".formatted(wrapped));
+    }
+    return s;
+  }
+
   private static String print(String s) {
-    var wrapped = WordUtils.wrap(s, 80, null, true);
-    System.out.println("\u001B[33m%s\u001B[0m".formatted(wrapped));
-    return wrapped;
+    return print(s, false, 0);
+  }
+
+  private static Optional<String> extractArgValue(String key, String[] args) {
+    var tmp = key + "=";
+    return Stream.of(args).filter(a -> a.startsWith(tmp))
+        .findFirst()
+        .map(a -> a.substring(tmp.length(), a.length()));
   }
 
   public static void main(String[] args) throws IOException {
     var sdt = new SimpleDateFormat(DATE_FORMAT);
-    var date = new Date();
-    if (args.length > 0) {
-      try {
-        date = sdt.parse(args[0]);
-      }
-      catch (ParseException e) {
-        throw new GospelException(
-            "Invalid date '%s'! Should be of format: '%s', fallback to current date."
-                .formatted(args[0], DATE_FORMAT));
-      }
-    }
-    var sDate = sdt.format(date);
-    print(sDate);
+    var date = extractArgValue("--date", args)
+        .map(d -> {
+          try {
+            return sdt.parse(d);
+          }
+          catch (ParseException e) {
+            throw new GospelException(
+                "Invalid date '%s'! Should be of format: '%s', fallback to current date."
+                    .formatted(d, DATE_FORMAT));
+          }
+        })
+        .orElse(new Date());
+
+    final var isCenter = Stream.of(args).anyMatch("--center"::equals);
+    final var textWidth = extractArgValue("--width", args).map(Integer::valueOf).orElse(0);
+    final var sDate = sdt.format(date);
 
     var path = LOCAL_PATH.resolve(sDate);
     var tmpFile = path.resolve(CONTENT_FILE);
     if (Files.exists(tmpFile)) {
-      Files.lines(tmpFile).forEach(Gospel::print);
+      Files.lines(tmpFile).forEach(line -> print(line, isCenter, textWidth));
       return;
     }
 
@@ -63,7 +88,7 @@ public class Gospel {
           }
           return resp.body();
         })
-        .thenAccept(body -> parse(body, path))
+        .thenAccept(body -> parse(body, path, isCenter, textWidth))
         .handle((result, e) -> {
           if (e != null) {
             System.err.println(e.getMessage());
@@ -71,6 +96,7 @@ public class Gospel {
           return result;
         });
     f.join();
+    print(sDate);
   }
 
   private static void writeToFile(Path path, List<String> lines) throws IOException {
@@ -80,7 +106,7 @@ public class Gospel {
     Files.write(path.resolve(CONTENT_FILE), lines, StandardOpenOption.CREATE);
   }
 
-  private static void parse(InputStream in, Path path) {
+  private static void parse(InputStream in, Path path, boolean isCenter, int textWidth) {
     try {
       var lines = Jsoup.parse(in, "UTF-8", "")
           .getElementsByClass("section__content")
@@ -91,7 +117,7 @@ public class Gospel {
             el.getElementsByTag("sup").forEach(Element::remove);
             return el.text();
           })
-          .map(Gospel::print)
+          .map(text -> print(text, isCenter, textWidth))
           .toList();
       writeToFile(path, lines);
     }

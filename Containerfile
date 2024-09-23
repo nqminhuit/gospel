@@ -15,4 +15,4 @@ COPY --from=build /app/gospel/target/lib target/lib
 RUN native-image -march=compatibility -cp target/gospel-*.jar "org.nqm.Gospel" --no-fallback
 RUN mv org.nqm.gospel gospel
 RUN chmod +x gospel
-RUN ./gospel 2024/09/22
+RUN ./gospel --date=2024/09/22 --center --width=80
