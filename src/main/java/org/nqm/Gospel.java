@@ -13,6 +13,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import org.apache.commons.text.WordUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 
@@ -25,8 +26,9 @@ public class Gospel {
   private static final String DATE_FORMAT = "yyyy/MM/dd";
 
   private static String print(String s) {
-    System.out.println("\u001B[33m %s \u001B[0m".formatted(s));
-    return s;
+    var wrapped = WordUtils.wrap(s, 80, null, true);
+    System.out.println("\u001B[33m%s\u001B[0m".formatted(wrapped));
+    return wrapped;
   }
 
   public static void main(String[] args) throws IOException {
