@@ -28,22 +28,28 @@ public class Gospel {
   private static final Path LOCAL_PATH = Path.of("/", "tmp", "vi", "loi-chua-hang-ngay");
   private static final String DATE_FORMAT = "yyyy/MM/dd";
 
-  private static String print(String s, boolean isCenter, int textWidth) {
+  private static String print(String s, boolean isCenter, int textWidth, boolean noColored) {
     final int width = textWidth < 60 ? 60 : textWidth;
     var wrapped = WordUtils.wrap(s, width, null, true);
+    if (!noColored) {
+      System.out.print("\u001B[33m"); // yellow
+    }
     if (isCenter) {
       Stream.of(wrapped.split("%n".formatted()))
           .map(line -> StringUtils.center(line, width + 2))
-          .forEach(line -> System.out.println("\u001B[33m%s\u001B[0m".formatted(line)));
+          .forEach(line -> System.out.println(line));
     }
     else {
-      System.out.println("\u001B[33m%s\u001B[0m".formatted(wrapped));
+      System.out.println(wrapped);
     }
+
+    // return to default color no matter what
+    System.out.print("\u001B[0m");
     return s;
   }
 
   private static String print(String s) {
-    return print(s, false, 0);
+    return print(s, false, 0, false);
   }
 
   private static Optional<String> extractArgValue(String key, String[] args) {
@@ -69,13 +75,14 @@ public class Gospel {
         .orElse(new Date());
 
     final var isCenter = Stream.of(args).anyMatch("--center"::equals);
+    final var noColored = Stream.of(args).anyMatch("--no-colored"::equals);
     final var textWidth = extractArgValue("--width", args).map(Integer::valueOf).orElse(0);
     final var sDate = sdt.format(date);
 
     var path = LOCAL_PATH.resolve(sDate);
     var tmpFile = path.resolve(CONTENT_FILE);
     if (Files.exists(tmpFile)) {
-      Files.lines(tmpFile).forEach(line -> print(line, isCenter, textWidth));
+      Files.lines(tmpFile).forEach(line -> print(line, isCenter, textWidth, noColored));
       return;
     }
 
@@ -88,7 +95,7 @@ public class Gospel {
           }
           return resp.body();
         })
-        .thenAccept(body -> parse(body, path, isCenter, textWidth))
+        .thenAccept(body -> parse(body, path, isCenter, textWidth, noColored))
         .handle((result, e) -> {
           if (e != null) {
             System.err.println(e.getMessage());
@@ -106,7 +113,7 @@ public class Gospel {
     Files.write(path.resolve(CONTENT_FILE), lines, StandardOpenOption.CREATE);
   }
 
-  private static void parse(InputStream in, Path path, boolean isCenter, int textWidth) {
+  private static void parse(InputStream in, Path path, boolean isCenter, int textWidth, boolean noColored) {
     try {
       var lines = Jsoup.parse(in, "UTF-8", "")
           .getElementsByClass("section__content")
@@ -117,7 +124,7 @@ public class Gospel {
             el.getElementsByTag("sup").forEach(Element::remove);
             return el.text();
           })
-          .map(text -> print(text, isCenter, textWidth))
+          .map(text -> print(text, isCenter, textWidth, noColored))
           .toList();
       writeToFile(path, lines);
     }
